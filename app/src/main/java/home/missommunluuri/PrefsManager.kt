@@ -19,6 +19,7 @@ class PrefsManager(private val context: Context) {
         val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
         val SNOOZE_MINUTES = intPreferencesKey("snooze_minutes")
         val LAST_ACCEPTED_TRIGGER = longPreferencesKey("last_accepted_trigger")
+        val IS_RINGING = booleanPreferencesKey("is_ringing")
     }
 
     val deviceToken: Flow<String?> = context.dataStore.data.map { it[DEVICE_TOKEN] }
@@ -28,6 +29,7 @@ class PrefsManager(private val context: Context) {
     val vibrationEnabled: Flow<Boolean> = context.dataStore.data.map { it[VIBRATION_ENABLED] ?: true }
     val snoozeMinutes: Flow<Int> = context.dataStore.data.map { it[SNOOZE_MINUTES] ?: 5 }
     val lastAcceptedTrigger: Flow<Long> = context.dataStore.data.map { it[LAST_ACCEPTED_TRIGGER] ?: 0L }
+    val isRinging: Flow<Boolean> = context.dataStore.data.map { it[IS_RINGING] ?: false }
 
     suspend fun setDeviceToken(token: String) {
         context.dataStore.edit { it[DEVICE_TOKEN] = token }
@@ -55,5 +57,9 @@ class PrefsManager(private val context: Context) {
 
     suspend fun setLastAcceptedTrigger(timestamp: Long) {
         context.dataStore.edit { it[LAST_ACCEPTED_TRIGGER] = timestamp }
+    }
+
+    suspend fun setIsRinging(ringing: Boolean) {
+        context.dataStore.edit { it[IS_RINGING] = ringing }
     }
 }

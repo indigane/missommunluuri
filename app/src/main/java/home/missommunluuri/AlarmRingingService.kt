@@ -36,6 +36,11 @@ class AlarmRingingService : Service() {
         }
         startForeground(NOTIFICATION_ID, createNotification())
         startRinging()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            PrefsManager(this@AlarmRingingService).setIsRinging(true)
+        }
+
         return START_STICKY
     }
 
@@ -138,6 +143,11 @@ class AlarmRingingService : Service() {
         mediaPlayer?.stop()
         mediaPlayer?.release()
         vibrator?.cancel()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            PrefsManager(this@AlarmRingingService).setIsRinging(false)
+        }
+
         super.onDestroy()
     }
 }

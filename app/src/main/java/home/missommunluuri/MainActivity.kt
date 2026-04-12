@@ -81,6 +81,7 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
     val deviceToken by prefs.deviceToken.collectAsStateWithLifecycle(initialValue = null)
     val deviceSlug by prefs.deviceSlug.collectAsStateWithLifecycle(initialValue = Build.MODEL)
     val wakeEnabled by prefs.wakeEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val isRinging by prefs.isRinging.collectAsStateWithLifecycle(initialValue = false)
     val clipboardManager = LocalClipboardManager.current
 
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -211,15 +212,33 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Button(
-            onClick = {
-                val intent = Intent(context, AlarmTriggerReceiver::class.java)
-                context.sendBroadcast(intent)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-        ) {
-            Text("Test Ring Button")
+        if (isRinging) {
+            Button(
+                onClick = {
+                    val intent = Intent(context, AlarmRingingService::class.java)
+                    intent.action = "STOP_ALARM"
+                    context.startService(intent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("STOP ALARM")
+            }
+        } else {
+            Button(
+                onClick = {
+                    val permissionStatus = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                    if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
+                        Toast.makeText(context, "Warning: Notification permission is recommended for stopping the alarm via notification.", Toast.LENGTH_LONG).show()
+                    }
+                    val intent = Intent(context, AlarmTriggerReceiver::class.java)
+                    context.sendBroadcast(intent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Text("Test Ring Button")
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
