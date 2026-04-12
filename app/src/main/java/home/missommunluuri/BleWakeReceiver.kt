@@ -18,8 +18,6 @@ import java.util.UUID
 
 class BleWakeReceiver : BroadcastReceiver() {
 
-    private val sharedUuid = UUID.fromString("7d8f6a4e-1d3b-4a6b-9e5d-c8d72d10b4a1")
-
     override fun onReceive(context: Context, intent: Intent) {
         val errorCode = intent.getIntExtra(BluetoothLeScanner.EXTRA_ERROR_CODE, -1)
         if (errorCode != -1) {
@@ -37,6 +35,7 @@ class BleWakeReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val tokenHex = prefs.deviceToken.first() ?: return@launch
+                val serviceUuidStr = prefs.serviceUuid.first()
                 val lastAccepted = prefs.lastAcceptedTrigger.first()
                 val now = SystemClock.elapsedRealtime()
 
@@ -46,8 +45,10 @@ class BleWakeReceiver : BroadcastReceiver() {
                     return@launch
                 }
 
+                val serviceUuid = UUID.fromString(serviceUuidStr)
+
                 for (result in results) {
-                    val serviceData = result.scanRecord?.serviceData?.get(android.os.ParcelUuid(sharedUuid))
+                    val serviceData = result.scanRecord?.serviceData?.get(android.os.ParcelUuid(serviceUuid))
                     if (serviceData != null && validatePayload(serviceData, tokenHex)) {
                         Log.i("BleWakeReceiver", "Valid trigger received!")
                         prefs.setLastAcceptedTrigger(now)

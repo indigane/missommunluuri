@@ -70,8 +70,9 @@ class MainActivity : ComponentActivity() {
         scope.launch {
             val enabled = prefs.wakeEnabled.first()
             val token = prefs.deviceToken.first()
+            val serviceUuid = prefs.serviceUuid.first()
             if (enabled && token != null) {
-                wakeScanManager.arm(token)
+                wakeScanManager.arm(serviceUuid, token)
             }
         }
     }
@@ -86,6 +87,7 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
     val wakeEnabled by prefs.wakeEnabled.collectAsStateWithLifecycle(initialValue = false)
     val isRinging by prefs.isRinging.collectAsStateWithLifecycle(initialValue = false)
     val ringtoneUri by prefs.ringtoneUri.collectAsStateWithLifecycle(initialValue = null)
+    val serviceUuidStored by prefs.serviceUuid.collectAsStateWithLifecycle(initialValue = "7d8f6a4e-1d3b-4a6b-9e5d-c8d72d10b4a1")
     val clipboardManager = LocalClipboardManager.current
 
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -117,6 +119,9 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
             }
         }
     }
+
+    var uuidInput by remember(serviceUuidStored) { mutableStateOf(serviceUuidStored) }
+    var tokenInput by remember(deviceToken) { mutableStateOf(deviceToken ?: "") }
 
     LaunchedEffect(Unit) {
         val currentToken = prefs.deviceToken.first()
@@ -214,6 +219,60 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                Text("Configuration", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = uuidInput,
+                    onValueChange = { uuidInput = it },
+                    label = { Text("Service UUID") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = tokenInput,
+                    onValueChange = { tokenInput = it },
+                    label = { Text("Device Token (16 hex chars)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        try {
+                            UUID.fromString(uuidInput)
+                            if (tokenInput.length != 16 || tokenInput.any { it.digitToIntOrNull(16) == null }) {
+                                throw IllegalArgumentException("Invalid token")
+                            }
+
+                            scope.launch {
+                                prefs.setServiceUuid(uuidInput)
+                                prefs.setDeviceToken(tokenInput)
+                                Toast.makeText(context, "Configuration saved", Toast.LENGTH_SHORT).show()
+
+                                if (wakeEnabled) {
+                                    wakeScanManager.disarm()
+                                    wakeScanManager.arm(uuidInput, tokenInput)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Invalid UUID or Token format", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save and Apply")
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Text("Preferences", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -257,7 +316,11 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
                     scope.launch {
                         prefs.setWakeEnabled(enabled)
                         if (enabled) {
-                            deviceToken?.let { wakeScanManager.arm(it) }
+                            val currentToken = prefs.deviceToken.first()
+                            val currentUuid = prefs.serviceUuid.first()
+                            if (currentToken != null) {
+                                wakeScanManager.arm(currentUuid, currentToken)
+                            }
                         } else {
                             wakeScanManager.disarm()
                         }

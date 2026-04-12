@@ -20,6 +20,7 @@ class PrefsManager(private val context: Context) {
         val SNOOZE_MINUTES = intPreferencesKey("snooze_minutes")
         val LAST_ACCEPTED_TRIGGER = longPreferencesKey("last_accepted_trigger")
         val IS_RINGING = booleanPreferencesKey("is_ringing")
+        val SERVICE_UUID = stringPreferencesKey("service_uuid")
     }
 
     val deviceToken: Flow<String?> = context.dataStore.data.map { it[DEVICE_TOKEN] }
@@ -30,6 +31,7 @@ class PrefsManager(private val context: Context) {
     val snoozeMinutes: Flow<Int> = context.dataStore.data.map { it[SNOOZE_MINUTES] ?: 5 }
     val lastAcceptedTrigger: Flow<Long> = context.dataStore.data.map { it[LAST_ACCEPTED_TRIGGER] ?: 0L }
     val isRinging: Flow<Boolean> = context.dataStore.data.map { it[IS_RINGING] ?: false }
+    val serviceUuid: Flow<String> = context.dataStore.data.map { it[SERVICE_UUID] ?: "7d8f6a4e-1d3b-4a6b-9e5d-c8d72d10b4a1" }
 
     suspend fun setDeviceToken(token: String) {
         context.dataStore.edit { it[DEVICE_TOKEN] = token }
@@ -61,5 +63,9 @@ class PrefsManager(private val context: Context) {
 
     suspend fun setIsRinging(ringing: Boolean) {
         context.dataStore.edit { it[IS_RINGING] = ringing }
+    }
+
+    suspend fun setServiceUuid(uuid: String) {
+        context.dataStore.edit { it[SERVICE_UUID] = uuid }
     }
 }

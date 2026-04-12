@@ -16,9 +16,7 @@ class WakeScanManager(private val context: Context) {
     private val adapter = bluetoothManager.adapter
     private val scanner = adapter?.bluetoothLeScanner
 
-    private val sharedUuid = UUID.fromString("7d8f6a4e-1d3b-4a6b-9e5d-c8d72d10b4a1")
-
-    fun arm(tokenHex: String) {
+    fun arm(serviceUuidStr: String, tokenHex: String) {
         if (scanner == null) {
             Log.e("WakeScanManager", "BLE Scanner not available")
             return
@@ -32,9 +30,10 @@ class WakeScanManager(private val context: Context) {
 
         val payloadPrefix = byteArrayOf(0x01) + tokenBytes
         val payloadMask = ByteArray(9) { 0xFF.toByte() }
+        val serviceUuid = UUID.fromString(serviceUuidStr)
 
         val filter = ScanFilter.Builder()
-            .setServiceData(ParcelUuid(sharedUuid), payloadPrefix, payloadMask)
+            .setServiceData(ParcelUuid(serviceUuid), payloadPrefix, payloadMask)
             .build()
 
         val settings = ScanSettings.Builder()

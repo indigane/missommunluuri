@@ -19,9 +19,10 @@ class BootReceiver : BroadcastReceiver() {
             CoroutineScope(Dispatchers.IO).launch {
                 val enabled = prefs.wakeEnabled.first()
                 val token = prefs.deviceToken.first()
+                val serviceUuid = prefs.serviceUuid.first()
 
                 if (enabled && token != null) {
-                    wakeManager.arm(token)
+                    wakeManager.arm(serviceUuid, token)
                 }
             }
         }
