@@ -16,7 +16,15 @@ class WakeScanManager(private val context: Context) {
     private val adapter = bluetoothManager.adapter
     private val scanner = adapter?.bluetoothLeScanner
 
+    fun isBluetoothEnabled(): Boolean {
+        return adapter?.isEnabled == true
+    }
+
     fun arm(serviceUuidStr: String, tokenHex: String) {
+        if (adapter == null || !adapter.isEnabled) {
+            Log.e("WakeScanManager", "Bluetooth is disabled or not available")
+            return
+        }
         if (scanner == null) {
             Log.e("WakeScanManager", "BLE Scanner not available")
             return

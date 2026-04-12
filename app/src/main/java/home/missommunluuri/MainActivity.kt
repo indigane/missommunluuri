@@ -16,7 +16,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.IntentCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -28,7 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -48,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var wakeScanManager: WakeScanManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         prefs = PrefsManager(this)
         wakeScanManager = WakeScanManager(this)
@@ -88,7 +91,7 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
     val isRinging by prefs.isRinging.collectAsStateWithLifecycle(initialValue = false)
     val ringtoneUri by prefs.ringtoneUri.collectAsStateWithLifecycle(initialValue = null)
     val serviceUuidStored by prefs.serviceUuid.collectAsStateWithLifecycle(initialValue = "7d8f6a4e-1d3b-4a6b-9e5d-c8d72d10b4a1")
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
 
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS)
@@ -110,8 +113,9 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            @Suppress("DEPRECATION")
-            val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            val uri = result.data?.let { intent ->
+                IntentCompat.getParcelableExtra(intent, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            }
             if (uri != null) {
                 scope.launch {
                     prefs.setRingtoneUri(uri.toString())
@@ -138,6 +142,7 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .systemBarsPadding()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -148,137 +153,78 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
             modifier = Modifier.padding(vertical = 16.dp)
         )
 
+        // 1. Wake Listening Toggle
         Card(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            colors = CardDefaults.cardColors(
+                containerColor = if (wakeEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+            )
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Setup", style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("1. Grant permissions and ensure Bluetooth is on.")
-                Button(
-                    onClick = { launcher.launch(permissions.toTypedArray()) },
-                    modifier = Modifier.padding(vertical = 8.dp)
-                ) {
-                    Text("Request Permissions")
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Exact alarm permission (USE_EXACT_ALARM) is included in the manifest. " +
-                           "This app is categorized as an alarm app, so this permission is granted automatically at installation. " +
-                           "It will not appear in the 'Alarms & Reminders' system settings list.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("2. Copy this snippet to your Linux config:")
-
-                val jsonSnippet = """
-                {
-                  "devices": {
-                    "${deviceSlug ?: "my-phone"}": {
-                      "token": "$deviceToken"
-                    }
-                  }
-                }
-                """.trimIndent()
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
-                        .padding(8.dp)
-                ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(16.dp).fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Wake Listening", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        text = jsonSnippet,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
+                        text = if (wakeEnabled) "App is armed and listening for BLE triggers" else "App is idle",
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
-
-                Button(
-                    onClick = {
-                        clipboardManager.setText(AnnotatedString(jsonSnippet))
-                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.padding(vertical = 8.dp)
-                ) {
-                    Text("Copy Snippet")
-                }
+                Switch(
+                    checked = wakeEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled && !wakeScanManager.isBluetoothEnabled()) {
+                            Toast.makeText(context, "Bluetooth is disabled", Toast.LENGTH_SHORT).show()
+                            return@Switch
+                        }
+                        scope.launch {
+                            prefs.setWakeEnabled(enabled)
+                            if (enabled) {
+                                val currentToken = prefs.deviceToken.first()
+                                val currentUuid = prefs.serviceUuid.first()
+                                if (currentToken != null) {
+                                    wakeScanManager.arm(currentUuid, currentToken)
+                                }
+                            } else {
+                                wakeScanManager.disarm()
+                            }
+                        }
+                    }
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
+        // 2. Common Settings Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Configuration", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = uuidInput,
-                    onValueChange = { uuidInput = it },
-                    label = { Text("Service UUID") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = tokenInput,
-                    onValueChange = { tokenInput = it },
-                    label = { Text("Device Token (16 hex chars)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
+                Text("General Settings", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = {
-                        try {
-                            UUID.fromString(uuidInput)
-                            if (tokenInput.length != 16 || tokenInput.any { it.digitToIntOrNull(16) == null }) {
-                                throw IllegalArgumentException("Invalid token")
-                            }
-
-                            scope.launch {
-                                prefs.setServiceUuid(uuidInput)
-                                prefs.setDeviceToken(tokenInput)
-                                Toast.makeText(context, "Configuration saved", Toast.LENGTH_SHORT).show()
-
-                                if (wakeEnabled) {
-                                    wakeScanManager.disarm()
-                                    wakeScanManager.arm(uuidInput, tokenInput)
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Invalid UUID or Token format", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save and Apply")
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-                Divider()
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text("Preferences", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
+                // Permissions
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Alarm Sound", style = MaterialTheme.typography.bodyMedium)
+                        Text("Permissions", style = MaterialTheme.typography.bodyLarge)
+                        Text("Bluetooth & Notifications", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                    Button(onClick = { launcher.launch(permissions.toTypedArray()) }) {
+                        Text("Grant")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Alarm Sound
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Alarm Sound", style = MaterialTheme.typography.bodyLarge)
                         val ringtoneName = remember(ringtoneUri) {
                             if (ringtoneUri == null) "Default"
                             else try {
@@ -305,32 +251,7 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Wake Listening", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            Switch(
-                checked = wakeEnabled,
-                onCheckedChange = { enabled ->
-                    scope.launch {
-                        prefs.setWakeEnabled(enabled)
-                        if (enabled) {
-                            val currentToken = prefs.deviceToken.first()
-                            val currentUuid = prefs.serviceUuid.first()
-                            if (currentToken != null) {
-                                wakeScanManager.arm(currentUuid, currentToken)
-                            }
-                        } else {
-                            wakeScanManager.disarm()
-                        }
-                    }
-                }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
+        // 3. Test Button
         if (isRinging) {
             Button(
                 onClick = {
@@ -338,34 +259,152 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
                     intent.action = "STOP_ALARM"
                     context.startService(intent)
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text("STOP ALARM")
+                Text("STOP ALARM", style = MaterialTheme.typography.titleMedium)
             }
         } else {
-            Button(
+            OutlinedButton(
                 onClick = {
                     val permissionStatus = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                     if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
-                        Toast.makeText(context, "Warning: Notification permission is recommended for stopping the alarm via notification.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Warning: Notification permission recommended for stopping the alarm.", Toast.LENGTH_LONG).show()
                     }
                     val intent = Intent(context, AlarmTriggerReceiver::class.java)
                     context.sendBroadcast(intent)
                 },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
-                Text("Test Ring Button")
+                Text("Test Ring Alarm", style = MaterialTheme.typography.titleMedium)
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 4. Integration Snippet
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Integration", style = MaterialTheme.typography.titleMedium)
+                Text("Use this snippet in your Linux trigger script:", style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val jsonSnippet = """
+                {
+                  "devices": {
+                    "${deviceSlug ?: "my-phone"}": {
+                      "token": "$deviceToken"
+                    }
+                  }
+                }
+                """.trimIndent()
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = jsonSnippet,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("linux-config", jsonSnippet)))
+                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Copy Snippet")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 5. Advanced Config
+        var showAdvanced by remember { mutableStateOf(false) }
+
+        TextButton(onClick = { showAdvanced = !showAdvanced }) {
+            Text(if (showAdvanced) "Hide Advanced Configuration" else "Show Advanced Configuration")
+        }
+
+        if (showAdvanced) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Advanced", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = uuidInput,
+                        onValueChange = { uuidInput = it },
+                        label = { Text("Service UUID") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = tokenInput,
+                        onValueChange = { tokenInput = it },
+                        label = { Text("Device Token (16 hex chars)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            try {
+                                UUID.fromString(uuidInput)
+                                if (tokenInput.length != 16 || tokenInput.any { it.digitToIntOrNull(16) == null }) {
+                                    throw IllegalArgumentException("Invalid token")
+                                }
+
+                                scope.launch {
+                                    prefs.setServiceUuid(uuidInput)
+                                    prefs.setDeviceToken(tokenInput)
+                                    Toast.makeText(context, "Configuration saved", Toast.LENGTH_SHORT).show()
+
+                                    if (wakeEnabled) {
+                                        wakeScanManager.disarm()
+                                        wakeScanManager.arm(uuidInput, tokenInput)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Invalid UUID or Token format", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save and Apply")
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
 
         Text(
             text = "Reliability depends on Bluetooth being enabled and battery optimization settings.",
             style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 16.dp)
         )
     }
 }
