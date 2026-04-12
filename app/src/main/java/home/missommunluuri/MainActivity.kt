@@ -29,7 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -89,7 +89,7 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
     val isRinging by prefs.isRinging.collectAsStateWithLifecycle(initialValue = false)
     val ringtoneUri by prefs.ringtoneUri.collectAsStateWithLifecycle(initialValue = null)
     val serviceUuidStored by prefs.serviceUuid.collectAsStateWithLifecycle(initialValue = "7d8f6a4e-1d3b-4a6b-9e5d-c8d72d10b4a1")
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
 
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS)
@@ -315,8 +315,10 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
 
                 TextButton(
                     onClick = {
-                        clipboardManager.setText(AnnotatedString(jsonSnippet))
-                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("linux-config", jsonSnippet)))
+                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     modifier = Modifier.align(Alignment.End)
                 ) {
