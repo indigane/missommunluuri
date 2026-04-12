@@ -119,7 +119,8 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
     }
 
     LaunchedEffect(Unit) {
-        if (deviceToken == null) {
+        val currentToken = prefs.deviceToken.first()
+        if (currentToken == null) {
             val random = SecureRandom()
             val bytes = ByteArray(8)
             random.nextBytes(bytes)

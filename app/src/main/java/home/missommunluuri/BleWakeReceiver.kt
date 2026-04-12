@@ -64,8 +64,9 @@ class BleWakeReceiver : BroadcastReceiver() {
     private fun validatePayload(data: ByteArray, tokenHex: String): Boolean {
         if (data.size != 9) return false
         if (data[0] != 0x01.toByte()) return false
-        val receivedToken = data.sliceArray(1..8).joinToString("") { "%02x".format(it) }
-        return receivedToken.equals(tokenHex, ignoreCase = true)
+        val receivedToken = data.sliceArray(1..8)
+        val expectedToken = Utils.hexToBytes(tokenHex)
+        return receivedToken.contentEquals(expectedToken)
     }
 
     private fun triggerAlarm(context: Context) {

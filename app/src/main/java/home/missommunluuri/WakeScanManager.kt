@@ -24,7 +24,7 @@ class WakeScanManager(private val context: Context) {
             return
         }
 
-        val tokenBytes = hexToBytes(tokenHex)
+        val tokenBytes = Utils.hexToBytes(tokenHex)
         if (tokenBytes.size != 8) {
             Log.e("WakeScanManager", "Invalid token length")
             return
@@ -73,11 +73,4 @@ class WakeScanManager(private val context: Context) {
         )
     }
 
-    private fun hexToBytes(hex: String): ByteArray {
-        val result = ByteArray(hex.length / 2)
-        for (i in 0 until hex.length step 2) {
-            result[i / 2] = hex.substring(i, i + 2).toInt(16).toByte()
-        }
-        return result
-    }
 }
