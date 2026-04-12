@@ -2,10 +2,67 @@
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
-    android:viewportHeight="108"
->
+    android:viewportHeight="108">
+
+    <!-- Roof -->
     <path
-        android:fillColor="#FF000000"
-        android:pathData="M34,34h40v40H34z"
-    />
+        android:pathData="M41,38L54,32L67,38"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Left alarm waves -->
+    <path
+        android:pathData="M32,45C26.5,50 26.5,60 32,65"
+        android:fillColor="#00000000"
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M37,49C33.5,52 33.5,58 37,61"
+        android:fillColor="#00000000"
+        android:strokeColor="#FBBF24"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- Right alarm waves -->
+    <path
+        android:pathData="M76,45C81.5,50 81.5,60 76,65"
+        android:fillColor="#00000000"
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M71,49C74.5,52 74.5,58 71,61"
+        android:fillColor="#00000000"
+        android:strokeColor="#FBBF24"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- Phone body -->
+    <path
+        android:pathData="M49.2,43H58.8A4.2,4.2 0,0 1,63,47.2V64.8A4.2,4.2 0,0 1,58.8,69H49.2A4.2,4.2 0,0 1,45,64.8V47.2A4.2,4.2 0,0 1,49.2,43Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Speaker slit -->
+    <path
+        android:pathData="M49,48H59"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round" />
+
+    <!-- Home button -->
+    <path
+        android:pathData="M54,62.8A1.7,1.7 0,1 1,54,66.2A1.7,1.7 0,1 1,54,62.8Z"
+        android:fillColor="#FFFFFF" />
+
 </vector>
