@@ -32,26 +32,31 @@ class BleWakeReceiver : BroadcastReceiver() {
             return
         }
 
+        val pendingResult = goAsync()
         val prefs = PrefsManager(context)
         CoroutineScope(Dispatchers.IO).launch {
-            val tokenHex = prefs.deviceToken.first() ?: return@launch
-            val lastAccepted = prefs.lastAcceptedTrigger.first()
-            val now = SystemClock.elapsedRealtime()
+            try {
+                val tokenHex = prefs.deviceToken.first() ?: return@launch
+                val lastAccepted = prefs.lastAcceptedTrigger.first()
+                val now = SystemClock.elapsedRealtime()
 
-            // Deduplicate: ignore if triggered within last 60 seconds
-            if (now - lastAccepted < 60_000) {
-                Log.d("BleWakeReceiver", "Deduplicated trigger")
-                return@launch
-            }
-
-            for (result in results) {
-                val serviceData = result.scanRecord?.serviceData?.get(android.os.ParcelUuid(sharedUuid))
-                if (serviceData != null && validatePayload(serviceData, tokenHex)) {
-                    Log.i("BleWakeReceiver", "Valid trigger received!")
-                    prefs.setLastAcceptedTrigger(now)
-                    triggerAlarm(context)
-                    break
+                // Deduplicate: ignore if triggered within last 60 seconds
+                if (now - lastAccepted < 60_000) {
+                    Log.d("BleWakeReceiver", "Deduplicated trigger")
+                    return@launch
                 }
+
+                for (result in results) {
+                    val serviceData = result.scanRecord?.serviceData?.get(android.os.ParcelUuid(sharedUuid))
+                    if (serviceData != null && validatePayload(serviceData, tokenHex)) {
+                        Log.i("BleWakeReceiver", "Valid trigger received!")
+                        prefs.setLastAcceptedTrigger(now)
+                        triggerAlarm(context)
+                        break
+                    }
+                }
+            } finally {
+                pendingResult.finish()
             }
         }
     }

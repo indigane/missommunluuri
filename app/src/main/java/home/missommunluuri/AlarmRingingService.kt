@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AlarmRingingService : Service() {
 
@@ -138,10 +139,5 @@ class AlarmRingingService : Service() {
         mediaPlayer?.release()
         vibrator?.cancel()
         super.onDestroy()
-    }
-
-    // Helper for withContext(Dispatchers.Main)
-    private suspend fun <T> withContext(context: kotlinx.coroutines.CoroutineDispatcher, block: suspend CoroutineScope.() -> T): T {
-        return kotlinx.coroutines.withContext(context, block)
     }
 }

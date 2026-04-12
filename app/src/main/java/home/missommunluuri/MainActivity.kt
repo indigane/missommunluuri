@@ -15,6 +15,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,7 +50,13 @@ class MainActivity : ComponentActivity() {
         wakeScanManager = WakeScanManager(this)
 
         setContent {
-            MainScreen(prefs, wakeScanManager)
+            val isDark = isSystemInDarkTheme()
+            val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
+            MaterialTheme(colorScheme = colorScheme) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    MainScreen(prefs, wakeScanManager)
+                }
+            }
         }
     }
 
@@ -131,17 +138,15 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
                     Text("Request Permissions")
                 }
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    Button(
-                        onClick = {
-                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    ) {
-                        Text("Request Exact Alarm Permission")
-                    }
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Exact alarm permission (USE_EXACT_ALARM) is included in the manifest. " +
+                           "This app is categorized as an alarm app, so this permission is granted automatically at installation. " +
+                           "It will not appear in the 'Alarms & Reminders' system settings list.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("2. Copy this snippet to your Linux config:")
@@ -159,12 +164,12 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.DarkGray, RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
                         .padding(8.dp)
                 ) {
                     Text(
                         text = jsonSnippet,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp
                     )

@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,10 +42,14 @@ class AlarmActivity : ComponentActivity() {
         }
 
         setContent {
-            AlarmScreen(
-                onStop = { stopAlarm() },
-                onSnooze = { snoozeAlarm() }
-            )
+            val isDark = isSystemInDarkTheme()
+            val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
+            MaterialTheme(colorScheme = colorScheme) {
+                AlarmScreen(
+                    onStop = { stopAlarm() },
+                    onSnooze = { snoozeAlarm() }
+                )
+            }
         }
     }
 
