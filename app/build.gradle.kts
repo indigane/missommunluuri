@@ -19,12 +19,12 @@ fun getGitUserSuffix(): String {
 }
 
 android {
-    namespace = "home.app"
-    compileSdk = 36
+    namespace = "home.missommunluuri"
+    compileSdk = 35
     defaultConfig {
-        applicationId = "home.replace_me"
+        applicationId = "home.missommunluuri"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
@@ -81,16 +81,23 @@ kotlin {
 
 dependencies {
     // Core libraries
-    implementation("androidx.core:core-ktx:1.18.0")
-    implementation("com.google.android.material:material:1.13.0")
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("com.google.android.material:material:1.12.0")
 
     // Jetpack Compose
-    val composeBom = platform("androidx.compose:compose-bom:2026.03.00")
+    val composeBom = platform("androidx.compose:compose-bom:2025.02.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.activity:activity-compose:1.10.0")
+
+    // DataStore
+    implementation("androidx.datastore:datastore-preferences:1.1.2")
+
+    // Lifecycle
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     // Testing libraries
     testImplementation("junit:junit:4.13.2")
