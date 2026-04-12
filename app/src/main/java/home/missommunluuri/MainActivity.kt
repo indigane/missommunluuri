@@ -1,11 +1,14 @@
 package home.missommunluuri
 
 import android.Manifest
+import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -82,6 +85,7 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
     val deviceSlug by prefs.deviceSlug.collectAsStateWithLifecycle(initialValue = Build.MODEL)
     val wakeEnabled by prefs.wakeEnabled.collectAsStateWithLifecycle(initialValue = false)
     val isRinging by prefs.isRinging.collectAsStateWithLifecycle(initialValue = false)
+    val ringtoneUri by prefs.ringtoneUri.collectAsStateWithLifecycle(initialValue = null)
     val clipboardManager = LocalClipboardManager.current
 
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -97,6 +101,20 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
             Toast.makeText(context, "Permissions granted", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "Permissions required for BLE scanning", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val ringtonePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            @Suppress("DEPRECATION")
+            val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            if (uri != null) {
+                scope.launch {
+                    prefs.setRingtoneUri(uri.toString())
+                }
+            }
         }
     }
 
@@ -189,6 +207,43 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Preferences", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Alarm Sound", style = MaterialTheme.typography.bodyMedium)
+                        val ringtoneName = remember(ringtoneUri) {
+                            if (ringtoneUri == null) "Default"
+                            else try {
+                                RingtoneManager.getRingtone(context, Uri.parse(ringtoneUri)).getTitle(context)
+                            } catch (e: Exception) { "Custom" }
+                        }
+                        Text(text = ringtoneName, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                    Button(onClick = {
+                        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Alarm Sound")
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, ringtoneUri?.let { Uri.parse(it) })
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                        }
+                        ringtonePickerLauncher.launch(intent)
+                    }) {
+                        Text("Change")
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
