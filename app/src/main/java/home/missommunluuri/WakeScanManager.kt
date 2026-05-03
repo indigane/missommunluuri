@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.ParcelUuid
 import android.util.Log
+import kotlinx.coroutines.flow.first
 import java.util.UUID
 
 sealed class ArmResult {
@@ -103,6 +104,20 @@ class WakeScanManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e("WakeScanManager", "Error during stopScan", e)
         }
+    }
+
+    suspend fun rearmIfEnabled(reason: String): ArmResult? {
+        val prefs = PrefsManager(context)
+        val enabled = prefs.wakeEnabled.first()
+        val token = prefs.deviceToken.first()
+        val serviceUuid = prefs.serviceUuid.first()
+
+        if (enabled && token != null) {
+            Log.i("WakeScanManager", "Re-arming BLE scan (reason: $reason)")
+            disarm()
+            return arm(serviceUuid, token)
+        }
+        return null
     }
 
     private fun getPendingIntent(): PendingIntent {
