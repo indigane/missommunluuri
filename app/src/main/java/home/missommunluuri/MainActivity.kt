@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -44,10 +45,18 @@ import kotlinx.coroutines.launch
 import java.security.SecureRandom
 import java.util.*
 
+sealed class WakeStatus {
+    object Idle : WakeStatus()
+    object Arming : WakeStatus()
+    object Armed : WakeStatus()
+    data class Failed(val message: String) : WakeStatus()
+}
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: PrefsManager
     private lateinit var wakeScanManager: WakeScanManager
+    private var wakeStatus by mutableStateOf<WakeStatus>(WakeStatus.Idle)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -60,7 +69,9 @@ class MainActivity : ComponentActivity() {
             val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colorScheme) {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    MainScreen(prefs, wakeScanManager)
+                    MainScreen(prefs, wakeScanManager, wakeStatus) { newStatus ->
+                        wakeStatus = newStatus
+                    }
                 }
             }
         }
@@ -75,14 +86,28 @@ class MainActivity : ComponentActivity() {
             val token = prefs.deviceToken.first()
             val serviceUuid = prefs.serviceUuid.first()
             if (enabled && token != null) {
-                wakeScanManager.arm(serviceUuid, token)
+                wakeStatus = WakeStatus.Arming
+                val result = wakeScanManager.arm(serviceUuid, token)
+                wakeStatus = if (result is ArmResult.Armed) {
+                    WakeStatus.Armed
+                } else {
+                    val msg = (result as ArmResult.Failed).message
+                    WakeStatus.Failed(msg)
+                }
+            } else {
+                wakeStatus = WakeStatus.Idle
             }
         }
     }
 }
 
 @Composable
-fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
+fun MainScreen(
+    prefs: PrefsManager,
+    wakeScanManager: WakeScanManager,
+    wakeStatus: WakeStatus,
+    onStatusChange: (WakeStatus) -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val deviceToken by prefs.deviceToken.collectAsStateWithLifecycle(initialValue = null)
@@ -157,7 +182,11 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = if (wakeEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                containerColor = when(wakeStatus) {
+                    is WakeStatus.Armed -> MaterialTheme.colorScheme.primaryContainer
+                    is WakeStatus.Failed -> MaterialTheme.colorScheme.errorContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
             )
         ) {
             Row(
@@ -166,9 +195,24 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Wake Listening", style = MaterialTheme.typography.titleLarge)
+
+                    val statusText = when(wakeStatus) {
+                        WakeStatus.Idle -> "App is idle"
+                        WakeStatus.Arming -> "Arming scanner..."
+                        WakeStatus.Armed -> "App is armed and listening for BLE triggers"
+                        is WakeStatus.Failed -> "Failed: ${wakeStatus.message}"
+                    }
+                    val statusColor = when(wakeStatus) {
+                        is WakeStatus.Failed -> MaterialTheme.colorScheme.error
+                        WakeStatus.Armed -> MaterialTheme.colorScheme.onPrimaryContainer
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+
                     Text(
-                        text = if (wakeEnabled) "App is armed and listening for BLE triggers" else "App is idle",
-                        style = MaterialTheme.typography.bodySmall
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = statusColor,
+                        fontWeight = if (wakeStatus is WakeStatus.Failed) FontWeight.Bold else FontWeight.Normal
                     )
                 }
                 Switch(
@@ -181,13 +225,22 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
                         scope.launch {
                             prefs.setWakeEnabled(enabled)
                             if (enabled) {
+                                onStatusChange(WakeStatus.Arming)
                                 val currentToken = prefs.deviceToken.first()
                                 val currentUuid = prefs.serviceUuid.first()
                                 if (currentToken != null) {
-                                    wakeScanManager.arm(currentUuid, currentToken)
+                                    val result = wakeScanManager.arm(currentUuid, currentToken)
+                                    if (result is ArmResult.Armed) {
+                                        onStatusChange(WakeStatus.Armed)
+                                    } else {
+                                        val msg = (result as ArmResult.Failed).message
+                                        onStatusChange(WakeStatus.Failed(msg))
+                                        Toast.makeText(context, "Arming failed: $msg", Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             } else {
                                 wakeScanManager.disarm()
+                                onStatusChange(WakeStatus.Idle)
                             }
                         }
                     }
@@ -382,8 +435,16 @@ fun MainScreen(prefs: PrefsManager, wakeScanManager: WakeScanManager) {
                                     Toast.makeText(context, "Configuration saved", Toast.LENGTH_SHORT).show()
 
                                     if (wakeEnabled) {
+                                        onStatusChange(WakeStatus.Arming)
                                         wakeScanManager.disarm()
-                                        wakeScanManager.arm(uuidInput, tokenInput)
+                                        val result = wakeScanManager.arm(uuidInput, tokenInput)
+                                        if (result is ArmResult.Armed) {
+                                            onStatusChange(WakeStatus.Armed)
+                                        } else {
+                                            val msg = (result as ArmResult.Failed).message
+                                            onStatusChange(WakeStatus.Failed(msg))
+                                            Toast.makeText(context, "Arming failed: $msg", Toast.LENGTH_LONG).show()
+                                        }
                                     }
                                 }
                             } catch (e: Exception) {
