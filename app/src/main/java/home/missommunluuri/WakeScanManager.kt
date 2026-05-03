@@ -51,8 +51,6 @@ class WakeScanManager(private val context: Context) {
         val serviceUuid = UUID.fromString(serviceUuidStr)
         val parcelUuid = ParcelUuid(serviceUuid)
 
-        // RESTORED: Filter by Service Data (version 0x01 + token) instead of Service UUID.
-        // This restores compatibility with Linux advertisers that omit Service UUIDs.
         val payloadPrefix = byteArrayOf(0x01) + tokenBytes
         val payloadMask = ByteArray(9) { 0xFF.toByte() }
 
