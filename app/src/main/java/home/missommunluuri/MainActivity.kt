@@ -82,20 +82,11 @@ class MainActivity : ComponentActivity() {
         // Re-arm if enabled, as recommended by spec
         val scope = lifecycleScope
         scope.launch {
-            val enabled = prefs.wakeEnabled.first()
-            val token = prefs.deviceToken.first()
-            val serviceUuid = prefs.serviceUuid.first()
-            if (enabled && token != null) {
-                wakeStatus = WakeStatus.Arming
-                val result = wakeScanManager.arm(serviceUuid, token)
-                wakeStatus = if (result is ArmResult.Armed) {
-                    WakeStatus.Armed
-                } else {
-                    val msg = (result as ArmResult.Failed).message
-                    WakeStatus.Failed(msg)
-                }
-            } else {
-                wakeStatus = WakeStatus.Idle
+            val result = wakeScanManager.rearmIfEnabled("resume")
+            wakeStatus = when (result) {
+                is ArmResult.Armed -> WakeStatus.Armed
+                is ArmResult.Failed -> WakeStatus.Failed(result.message)
+                null -> WakeStatus.Idle
             }
         }
     }
@@ -226,17 +217,12 @@ fun MainScreen(
                             prefs.setWakeEnabled(enabled)
                             if (enabled) {
                                 onStatusChange(WakeStatus.Arming)
-                                val currentToken = prefs.deviceToken.first()
-                                val currentUuid = prefs.serviceUuid.first()
-                                if (currentToken != null) {
-                                    val result = wakeScanManager.arm(currentUuid, currentToken)
-                                    if (result is ArmResult.Armed) {
-                                        onStatusChange(WakeStatus.Armed)
-                                    } else {
-                                        val msg = (result as ArmResult.Failed).message
-                                        onStatusChange(WakeStatus.Failed(msg))
-                                        Toast.makeText(context, "Arming failed: $msg", Toast.LENGTH_LONG).show()
-                                    }
+                                val result = wakeScanManager.rearmIfEnabled("toggle")
+                                if (result is ArmResult.Armed) {
+                                    onStatusChange(WakeStatus.Armed)
+                                } else if (result is ArmResult.Failed) {
+                                    onStatusChange(WakeStatus.Failed(result.message))
+                                    Toast.makeText(context, "Arming failed: ${result.message}", Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 wakeScanManager.disarm()
@@ -436,14 +422,12 @@ fun MainScreen(
 
                                     if (wakeEnabled) {
                                         onStatusChange(WakeStatus.Arming)
-                                        wakeScanManager.disarm()
-                                        val result = wakeScanManager.arm(uuidInput, tokenInput)
+                                        val result = wakeScanManager.rearmIfEnabled("config change")
                                         if (result is ArmResult.Armed) {
                                             onStatusChange(WakeStatus.Armed)
-                                        } else {
-                                            val msg = (result as ArmResult.Failed).message
-                                            onStatusChange(WakeStatus.Failed(msg))
-                                            Toast.makeText(context, "Arming failed: $msg", Toast.LENGTH_LONG).show()
+                                        } else if (result is ArmResult.Failed) {
+                                            onStatusChange(WakeStatus.Failed(result.message))
+                                            Toast.makeText(context, "Arming failed: ${result.message}", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 }
