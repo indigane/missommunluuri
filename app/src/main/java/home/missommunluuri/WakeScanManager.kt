@@ -49,10 +49,15 @@ class WakeScanManager(private val context: Context) {
         }
 
         val serviceUuid = UUID.fromString(serviceUuidStr)
+        val parcelUuid = ParcelUuid(serviceUuid)
 
-        // Loosened filter: only filter by Service UUID, not specific service data bytes
+        // RESTORED: Filter by Service Data (version 0x01 + token) instead of Service UUID.
+        // This restores compatibility with Linux advertisers that omit Service UUIDs.
+        val payloadPrefix = byteArrayOf(0x01) + tokenBytes
+        val payloadMask = ByteArray(9) { 0xFF.toByte() }
+
         val filter = ScanFilter.Builder()
-            .setServiceUuid(ParcelUuid(serviceUuid))
+            .setServiceData(parcelUuid, payloadPrefix, payloadMask)
             .build()
 
         val settings = ScanSettings.Builder()
@@ -64,8 +69,12 @@ class WakeScanManager(private val context: Context) {
 
         return try {
             val resultCode = scanner.startScan(listOf(filter), settings, pendingIntent)
-            if (resultCode == 0) {
-                Log.i("WakeScanManager", "BLE scan armed with Service UUID $serviceUuidStr")
+            if (resultCode == 0 || resultCode == ScanCallback.SCAN_FAILED_ALREADY_STARTED) {
+                if (resultCode == ScanCallback.SCAN_FAILED_ALREADY_STARTED) {
+                    Log.i("WakeScanManager", "BLE scan was already started; treating as success")
+                } else {
+                    Log.i("WakeScanManager", "BLE scan armed with Service Data for $serviceUuidStr")
+                }
                 ArmResult.Armed
             } else {
                 val message = mapScanError(resultCode)
